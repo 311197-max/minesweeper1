@@ -1,1 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>踩地雷 Minesweeper</title>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; background: #e0e0e0; }
+        .controls { margin: 20px; padding: 15px; background: #bdbdbd; border: 3px outset #eee; }
+        .status-bar { 
+            background: black; color: red; font-family: monospace; font-size: 24px;
+            padding: 10px; display: flex; justify-content: space-around; width: 300px;
+            border: 3px inset #888; margin-bottom: 10px;
+        }
+        .board { 
+            display: grid; background: #7b7b7b; border: 5px inset #eee; 
+            gap: 1px; margin-bottom: 20px;
+        }
+        .cell {
+            width: 30px; height: 30px; background: #bdbdbd;
+            border: 3px outset #eee; display: flex; align-items: center;
+            justify-content: center; cursor: pointer; font-weight: bold;
+            user-select: none; box-sizing: border-box;
+        }
+        .cell.revealed { background: #d1d1d1; border: 1px solid #999; }
+        .cell.mine { background: red; }
+        .cell.flag { color: black; }
+        .cell[data-count="1"] { color: blue; }
+        .cell[data-count="2"] { color: green; }
+        .cell[data-count="3"] { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Minesweeper</h1>
+    
+    <div class="controls">
+        選擇難度: 
+        <select id="difficulty">
+            <option value="easy">新手 (9x9)</option>
+            <option value="medium">進階 (16x16)</option>
+            <option value="hard">專家 (16x30)</option>
+            <option value="custom">自定義</option>
+        </select>
+        <div id="custom-area" style="display:none; margin-top:10px;">
+            H: <input type="number" id="h" value="10" style="width:40px"> 
+            W: <input type="number" id="w" value="10" style="width:40px"> 
+            M: <input type="number" id="m" value="10" style="width:40px">
+        </div>
+        <button id="start-btn" style="margin-top:10px; padding: 5px 20px;">開始/重玩</button>
+    </div>
+
+    <div class="status-bar">
+        <span>⏱ <span id="timer">000</span></span>
+        <span>💣 <span id="mines">000</span></span>
+    </div>
+
+    <div id="board" class="board"></div>
+
+    <script>
+        const boardEl = document.getElementById('board');
+        const diffSel = document.getElementById('difficulty');
+        const startBtn = document.getElementById('start-btn');
+        
+        let board = [], r, c, m, timer, time = 0, active = false;
+
+        diffSel.onchange = () => {
+            document.getElementById('custom-area').style.display = diffSel.value === 'custom' ? 'block' : 'none';
+        };
+
+        function start() {
+            clearInterval(timer);
+            time = 0; active = false;
+            document.getElementById('timer').innerText = "000";
+            
+            if(diffSel.value === 'custom') {
+                r = parseInt(document.getElementById('h').value);
+                c = parseInt(document.getElementById('w').value);
+                m = parseInt(document.getElementById('m').value);
+            } else {
+                const cfg = { easy:[9,9,10], medium:[16,16,40], hard:[16,30,99] }[diffSel.value];
+                [r, c, m] = cfg;
+            }
+
+            document.getElementById('mines').innerText = m.toString().padStart(3,'0');
+            boardEl.style.gridTemplateColumns = `repeat(${c}, 30px)`;
+            boardEl.innerHTML = '';
+            board = Array.from({length: r}, () => Array(c).fill(null));
+
+            for(let i=0; i<r; i++) {
+                for(let j=0; j<c; j++) {
+                    const el = document.createElement('div');
+                    el.className = 'cell';
+                    el.onclick = () => click(i, j);
+                    el.oncontextmenu = (e) => { e.preventDefault(); flag(i, j); };
+                    boardEl.appendChild(el);
+                    board[i][j] = { mine: false, rev: false, flg: false, el: el };
+                }
+            }
+
+            let p = 0;
+            while(p < m) {
+                let rr = Math.floor(Math.random()*r), cc = Math.floor(Math.random()*c);
+                if(!board[rr][cc].mine) { board[rr][cc].mine = true; p++; }
+            }
+        }
+
+        function click(ri, ci) {
+            if(!active) {
+                active = true;
+                timer = setInterval(() => { time++; document.getElementById('timer').innerText = time.toString().padStart(3,'0'); }, 1000);
+            }
+            const cell = board[ri][ci];
+            if(cell.rev || cell.flg) return;
+            cell.rev = true;
+            cell.el.classList.add('revealed');
+            if(cell.mine) {
+                cell.el.classList.add('mine');
+                alert('Game Over!');
+                clearInterval(timer);
+                return;
+            }
+            let count = 0;
+            for(let i=-1; i<=1; i++) {
+                for(let j=-1; j<=1; j++) {
+                    let ni=ri+i, nj=ci+j;
+                    if(ni>=0 && ni<r && nj>=0 && nj<c && board[ni][nj].mine) count++;
+                }
+            }
+            if(count > 0) {
+                cell.el.innerText = count;
+                cell.el.setAttribute('data-count', count);
+            } else {
+                for(let i=-1; i<=1; i++) {
+                    for(let j=-1; j<=1; j++) {
+                        let ni=ri+i, nj=ci+j;
+                        if(ni>=0 && ni<r && nj>=0 && nj<c) click(ni, nj);
+                    }
+                }
+            }
+        }
+
+        function flag(ri, ci) {
+            const cell = board[ri][ci];
+            if(cell.rev) return;
+            cell.flg = !cell.flg;
+            cell.el.innerText = cell.flg ? '🚩' : '';
+        }
+
+        startBtn.onclick = start;
+        start();
+    </script>
+</body>
+</html>
 
